@@ -15,13 +15,15 @@ class Station(Producer):
     """Defines a single station"""
 
     key_schema = avro.load(f"{Path(__file__).parents[0]}/schemas/arrival_key.json")
+    value_schema = avro.load(f"{Path(__file__).parents[0]}/schemas/arrival_value.json")
 
-    #
-    # TODO: Define this value schema in `schemas/station_value.json, then uncomment the below
-    #
-    #value_schema = avro.load(f"{Path(__file__).parents[0]}/schemas/arrival_value.json")
-
-    def __init__(self, station_id, name, color, direction_a=None, direction_b=None):
+    def __init__(self, station_id: str, name: str, color: str, direction_a: str = None, direction_b: str = None):
+        """
+        It was required to have a separate Kafka topic for each station.
+        The Producer's __init__ method creates the topic if it doesn't already exist.
+        In this class, we ensure that we have a separate topic for each station by making topic_name a function
+        of station_name.
+        """
         self.name = name
         station_name = (
             self.name.lower()
@@ -31,19 +33,13 @@ class Station(Producer):
             .replace("'", "")
         )
 
-        #
-        #
-        # TODO: Complete the below by deciding on a topic name, number of partitions, and number of
-        # replicas
-        #
-        #
-        topic_name = f"{station_name}" # TODO: Come up with a better topic name
+        topic_name = f"ent.cta.{station_name}.arrivals.v1"
         super().__init__(
             topic_name,
             key_schema=Station.key_schema,
-            # TODO: value_schema=Station.value_schema, # TODO: Uncomment once schema is defined
-            # TODO: num_partitions=???,
-            # TODO: num_replicas=???,
+            value_schema=Station.value_schema,
+            num_partitions=1,
+            num_replicas=1
         )
 
         self.station_id = int(station_id)
@@ -54,26 +50,24 @@ class Station(Producer):
         self.b_train = None
         self.turnstile = Turnstile(self)
 
-
     def run(self, train, direction, prev_station_id, prev_direction):
-        """Simulates train arrivals at this station"""
-        #
-        #
-        # TODO: Complete this function by producing an arrival message to Kafka
-        #
-        #
-        logger.info("arrival kafka integration incomplete - skipping")
-        #self.producer.produce(
-        #    topic=self.topic_name,
-        #    key={"timestamp": self.time_millis()},
-        #    value={
-        #        #
-        #        #
-        #        # TODO: Configure this
-        #        #
-        #        #
-        #    },
-        #)
+        """
+        Simulates train arrivals at this station.
+        Station.run() should emit an arrival event to Kafka
+        """
+        self.producer.produce(
+           topic=self.topic_name,
+           key={"timestamp": Producer.time_now_in_millis()},
+           value={
+               "station_id": self.station_id,
+               "train_id": train.train_id,
+               "direction": direction,
+               "line": self.color,
+               "train_status": train.status,
+               "prev_station_id": prev_station_id,
+               "prev_direction": prev_direction
+           },
+        )
 
     def __str__(self):
         return "Station | {:^5} | {:<30} | Direction A: | {:^5} | departing to {:<30} | Direction B: | {:^5} | departing to {:<30} | ".format(
