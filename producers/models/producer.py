@@ -55,27 +55,69 @@ class Producer:
         )
 
     def create_topic(self):
-        """Creates the producer topic if it does not already exist"""
-        #
-        #
-        # TODO: Write code that creates the topic for this producer if it does not already exist on
-        # the Kafka Broker.
-        #
-        #
-        logger.info("topic creation kafka integration incomplete - skipping")
+        """
+        Creates the producer topic if it does not already exist
+        """
+        admin_client = AdminClient(
+            {
+                "bootstrap.servers": BROKER_URL
+            }
+        )
 
-    def time_millis(self):
-        return int(round(time.time() * 1000))
+        exists = Producer.topic_exists(admin_client, self.topic_name)
+        logging.info(f"Topic {self.topic_name} exists: {exists}")
+
+        if not exists:
+            self._create_topic(admin_client)
+
+        logger.info("topic creation kafka integration incomplete - skipping")
 
     def close(self):
         """Prepares the producer for exit by cleaning up the producer"""
-        #
-        #
-        # TODO: Write cleanup code for the Producer here
-        #
-        #
-        logger.info("producer close incomplete - skipping")
+        self.producer.commit_transaction(timeout=5)
 
-    def time_millis(self):
-        """Use this function to get the key for Kafka Events"""
-        return int(round(time.time() * 1000))
+    def _create_topic(self, client: confluent_kafka.admin.AdminClient) -> None:
+        """
+        Creates the topic with the given topic name
+
+        See the documentation on NewTopic here:
+        https://docs.confluent.io/current/clients/confluent-kafka-python/#confluent_kafka.admin.NewTopic
+
+        See the documentation on topic configuration here:
+        https://docs.confluent.io/current/installation/configuration/topic-configs.html
+        """
+        futures = client.create_topics(
+            [
+                NewTopic(
+                    topic=self.topic_name,
+                    num_partitions=self.num_partitions,
+                    replication_factor=self.num_replicas,
+                )
+            ]
+        )
+
+        for topic, future in futures.items():
+            try:
+                future.result()
+                logging.info(f"Topic: {self.topic_name} created")
+            except Exception as e:
+                logging.info(f"Failed to create topic: {self.topic_name}: {e}")
+                raise
+
+    @staticmethod
+    def topic_exists(client: confluent_kafka.admin.AdminClient, topic_name: str) -> bool:
+        """
+        Checks if the given topic exists.
+
+        Documentation on list_topics can be found here:
+        https://docs.confluent.io/current/clients/confluent-kafka-python/#confluent_kafka.Consumer.list_topics
+        """
+        topic_metadata = client.list_topics(timeout=5)
+        return topic_metadata.topics.get(topic_name) is not None
+
+
+def time_now_in_millis() -> int:
+    """
+    Use this function to get the key for Kafka Events
+    """
+    return int(round(time.time() * 1000))
