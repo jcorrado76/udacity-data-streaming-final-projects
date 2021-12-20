@@ -115,9 +115,9 @@ class Producer:
         topic_metadata = client.list_topics(timeout=5)
         return topic_metadata.topics.get(topic_name) is not None
 
-
-def time_now_in_millis() -> int:
-    """
-    Use this function to get the key for Kafka Events
-    """
-    return int(round(time.time() * 1000))
+    @staticmethod
+    def time_now_in_millis() -> int:
+        """
+        Use this function to get the key for Kafka Events
+        """
+        return int(round(time.time() * 1000))
