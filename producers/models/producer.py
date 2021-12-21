@@ -76,7 +76,7 @@ class Producer:
         """Prepares the producer for exit by cleaning up the producer"""
         self.producer.commit_transaction(timeout=5)
 
-    def _create_topic(self, client: confluent_kafka.admin.AdminClient) -> None:
+    def _create_topic(self, client: AdminClient) -> None:
         """
         Creates the topic with the given topic name
 
@@ -105,7 +105,7 @@ class Producer:
                 raise
 
     @staticmethod
-    def topic_exists(client: confluent_kafka.admin.AdminClient, topic_name: str) -> bool:
+    def topic_exists(client: AdminClient, topic_name: str) -> bool:
         """
         Checks if the given topic exists.
 
