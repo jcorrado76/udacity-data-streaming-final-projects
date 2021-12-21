@@ -50,7 +50,7 @@ class Turnstile(Producer):
                     "timestamp": Producer.time_now_in_millis(),
                 },
                 value={
-                    "station_id": self.station.station_id,
+                    "station_id": str(self.station.station_id),
                     "station_name": self.station.name,
                     "line": self.station.color.name
                 }
