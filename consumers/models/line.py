@@ -62,7 +62,7 @@ class Line:
                 self._handle_station(value)
             except Exception as e:
                 logger.fatal("bad station? %s, %s", value, e)
-        elif message.topic() == "ent.cta.station.arrivals.v1":
+        elif message.topic() == "ent.cta.arrivals.v1":
             self._handle_arrival(message)
         elif message.topic() == "TURNSTILE_SUMMARY":
             json_data = json.loads(message.value())
