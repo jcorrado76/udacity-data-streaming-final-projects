@@ -65,24 +65,33 @@ class Weather(Producer):
 
     def run(self, month):
         self._set_weather(month)
+        url = f"{Weather.rest_proxy_url}/topics/{self.topic_name}"
+        headers = {
+            "Content-Type": "application/vnd.kafka.avro.v2+json"
+        }
         data = {
             "key_schema": json.dumps(Weather.key_schema),
             "value_schema": json.dumps(Weather.value_schema),
             "records": [
                 {
                     "key": {"timestamp": Producer.time_now_in_millis()},
-                    "value": {"temperature": self.temp, "status": self.status}
+                    "value": {"temperature": self.temp, "status": self.status.name}
                 }
             ]
         }
         resp = requests.post(
-           f"{Weather.rest_proxy_url}/topics/{self.topic_name}",
-           headers={
-               "Content-Type": "application/vnd.kafka.avro.v2+json"
-           },
+           url,
+           headers=headers,
            data=json.dumps(data)
         )
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            print("Received an HTTPError")
+            print(f"URL: {url}")
+            print(f"headers: {headers}")
+            print(f"data: {data}")
+            raise requests.exceptions.HTTPError
 
         logger.debug(
             "sent weather data to kafka, temp: %s, status: %s",
