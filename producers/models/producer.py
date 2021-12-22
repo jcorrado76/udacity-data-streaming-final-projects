@@ -74,7 +74,7 @@ class Producer:
 
     def close(self):
         """Prepares the producer for exit by cleaning up the producer"""
-        self.producer.commit_transaction(timeout=5)
+        self.producer.flush(timeout=5)
 
     def _create_topic(self, client: AdminClient) -> None:
         """

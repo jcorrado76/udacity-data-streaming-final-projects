@@ -56,13 +56,13 @@ class Line:
 
     def process_message(self, message):
         """Given a kafka message, extract data"""
-        if message.topic() == "ent.cta.stations_reduced.v1":
+        if message.topic() == "org.chicago.cta.stations.table.v1":
             try:
                 value = json.loads(message.value())
                 self._handle_station(value)
             except Exception as e:
                 logger.fatal("bad station? %s, %s", value, e)
-        elif message.topic() == "ent.cta.arrivals.v1":
+        elif message.topic() == "org.chicago.cta.station.arrivals.v1":
             self._handle_arrival(message)
         elif message.topic() == "TURNSTILE_SUMMARY":
             json_data = json.loads(message.value())

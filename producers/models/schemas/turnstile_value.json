@@ -1,7 +1,7 @@
 {
   "type": "record",
   "name": "turnstile.value",
-  "namespace": "ent.cta",
+  "namespace": "org.chicago.cta",
   "fields": [
     {
       "name": "station_id",

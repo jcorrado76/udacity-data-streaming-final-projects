@@ -30,12 +30,11 @@ class TransformedStation(faust.Record):
 
 
 app = faust.App("stations-stream", broker="kafka://localhost:9092", store="memory://")
-# this topic name comes from connector.py in the setting for the `topic`
-input_topic = app.topic("ent.cta.stations", value_type=Station)
-output_topic = app.topic("ent.cta.stations_reduced.v1", partitions=1)
+input_topic = app.topic("org.chicago.cta.stations", value_type=Station)
+output_topic = app.topic("org.chicago.cta.stations.table.v1", partitions=1)
 
 table = app.Table(
-   name="stations_reduced",
+   name="transformed_stations",
    default=TransformedStation,
    partitions=1,
    changelog_topic=output_topic,
