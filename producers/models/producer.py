@@ -70,8 +70,6 @@ class Producer:
         if not exists:
             self._create_topic(admin_client)
 
-        logger.info("topic creation kafka integration incomplete - skipping")
-
     def close(self):
         """Prepares the producer for exit by cleaning up the producer"""
         self.producer.flush(timeout=5)
