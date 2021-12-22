@@ -65,7 +65,6 @@ class KafkaConsumer:
 
     def _consume(self):
         """Polls for a message. Returns 1 if a message was received, 0 otherwise"""
-        logger.info("_consume is incomplete - skipping")
         try:
             msg = self.consumer.poll(self.consume_timeout)
         except Exception as e:
