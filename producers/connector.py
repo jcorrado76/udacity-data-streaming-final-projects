@@ -44,7 +44,7 @@ def configure_connector():
                "table.whitelist": CONNECTOR_NAME,
                "mode": "incrementing",
                "incrementing.column.name": "stop_id",
-               "topic": f"ent.cta.{CONNECTOR_NAME}",
+               "topic.prefix": "ent.cta.",
                "poll.interval.ms": "300000",
            }
        }),
