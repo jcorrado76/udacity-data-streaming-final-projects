@@ -30,6 +30,7 @@ class TransformedStation(faust.Record):
 
 
 app = faust.App("stations-stream", broker="kafka://localhost:9092", store="memory://")
+# this topic name comes from connector.py in the setting for the `topic`
 input_topic = app.topic("ent.cta.stations", value_type=Station)
 output_topic = app.topic("ent.cta.stations_reduced.v1", partitions=1)
 
@@ -53,7 +54,7 @@ async def transform_station_events(station_events):
 
         transformed_station_event = TransformedStation(
             station_event.station_id,
-            station_event.stop_name,
+            station_event.station_name,
             station_event.order,
             line
         )
