@@ -1,2 +1,3 @@
 alias consume="kafka-console-consumer --bootstrap-server localhost:9092 --topic"
 alias list_topics="kafka-topics --list --zookeeper localhost:2181"
+alias run_faust="faust -A faust_stream worker -l info"
