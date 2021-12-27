@@ -58,7 +58,7 @@ def run_server():
     application = tornado.web.Application(
         [(r"/", MainHandler, {"weather": weather_model, "lines": lines})]
     )
-    application.listen(8888)
+    application.listen(3000)
 
     # Build kafka consumers
     consumers = [
