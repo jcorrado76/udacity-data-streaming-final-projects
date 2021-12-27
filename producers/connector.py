@@ -25,7 +25,7 @@ def configure_connector():
     # or, you can just pass a topic here
     # in our implementation, we've whitelisted only CONNECTOR_NAME, which is "stations". So, there should be a
     # table in our postgres database named stations, and the topic that the data is outputted to should be called
-    # ent.cta.stations
+    # org.chicago.cta.stations
     resp = requests.post(
        KAFKA_CONNECT_URL,
        headers={"Content-Type": "application/json"},
