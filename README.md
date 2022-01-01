@@ -1,295 +1,175 @@
-# Optimizing Public Transportation Project
-***
-This is the codebase for my implementation of the Udacity Optimizing Public Transportation Project from the Data Streaming Nanodegree program.
+# STEDI Ecosystem
 
-The high level architecture for this application looks like this:
-![high level architecture](images/Optimizing%20Public%20Transportation%20Project.png)
+You work for the data science team at STEDI, a small startup focused on assessing balance for seniors. STEDI has an application that collects data from seniors during a small exercise. The user logs in, and then selects the customer they are working with. Then the user starts a timer, and clicks a button with each step the senior takes. When the senior has reached 30 steps, their test is finished. The data transmitted enables the application to monitor seniors’ balance risk. 
 
-The objective for this project was to produce a dashboard displaying weather conditions,
-train arrival times between stations, as well as counts of turnstile turns at each station.
-
-For the frontend, we leveraged the Tornado server platform and Kafka consumers to ingest the data from
-our Kafka cluster.
-
-In terms of data processing, we utilized a Kafka cluster as our message broker, as well as Faust and KSQL to process the data.
-
-In this project, we had three main data sources:
-* a Weather HTTP source
-* a PostgreSQL database containing static information about the stations
-* Train Arrival and Turnstile turn information
-
-The weather, train arrival, and turnstile turn data is simulated and posted to the Kafka cluster
-using some Python code, and the static station information is created in a local PostgreSQL database deployment.
-
-The final dashboard will look like this:
-![Final User Interface](images/ui.png) 
-# Contents
-***
-## Producers
-### Producer Base Class
-For producers, the first thing we needed to implement was the `Producer` base class, found in `producers/models/producer.py`
-
-The `producer` base class handles creating the topic for this producer, as well as instantiating the underlying `Producer` class
-from the python Confluent library.
-### Train Arrivals and Turnstile Events
-Next, we needed to define the Avro schema for train arrival events in `/producers/models/schemas/arrival_value.json`.
-
-1. Define a `value` schema for the arrival event in `producers/models/schemas/arrival_value.json` with the following attributes
-	* `station_id`
-	* `train_id`
-	* `direction`
-	* `line`
-	* `train_status`
-	* `prev_station_id`
-	* `prev_direction`
-1. Complete the code in `producers/models/station.py` so that:
-	* A topic is created for each station in Kafka to track the arrival events
-	* The station emits an `arrival` event to Kafka whenever the `Station.run()` function is called.
-	* Ensure that events emitted to kafka are paired with the Avro `key` and `value` schemas
-1. Define a `value` schema for the turnstile event in `producers/models/schemas/turnstile_value.json` with the following attributes
-	* `station_id`
-	* `station_name`
-	* `line`
-1. Complete the code in `producers/models/turnstile.py` so that:
-	* A topic is created for each turnstile for each station in Kafka to track the turnstile events
-	* The station emits a `turnstile` event to Kafka whenever the `Turnstile.run()` function is called.
-	* Ensure that events emitted to kafka are paired with the Avro `key` and `value` schemas
-### Configure REST Proxy for Weather Events
-In addition, we needed to complete the code inside `producers/models/weather.py`, as well as the event schema for weather events
-inside `producers/models/schemas/weather_value.json` to define the weather events, and then configure
-Python with the `requests` library to make the POST requests to create data.
-
-1. Define a `value` schema for the weather event in `producers/models/schemas/weather_value.json` with the following attributes
-	* `temperature`
-	* `status`
-1. Complete the code in `producers/models/weather.py` so that:
-	* A topic is created for weather events
-	* The weather model emits `weather` event to Kafka REST Proxy whenever the `Weather.run()` function is called.
-		* **NOTE**: When sending HTTP requests to Kafka REST Proxy, be careful to include the correct `Content-Type`. Pay close attention to the [examples in the documentation](https://docs.confluent.io/current/kafka-rest/api.html#post--topics-(string-topic_name)) for more information.
-	* Ensure that events emitted to REST Proxy are paired with the Avro `key` and `value` schemas
-### Postgres Kafka Connector
-The first consumer we'll work on is the Kafka Connect JDBC Connector to read the static station data from the PostgreSQL 
-database we have. 
-
-1. Complete the code and configuration in `producers/connectors.py`
-    * Please refer to the [Kafka Connect JDBC Source Connector Configuration Options](https://docs.confluent.io/current/connect/kafka-connect-jdbc/source-connector/source_config_options.html) for documentation on the options you must complete.
-    * You can run this file directly to test your connector, rather than running the entire simulation.
-    * Make sure to use the [Landoop Kafka Connect UI](http://localhost:8084) and [Landoop Kafka Topics UI](http://localhost:8085) to check the status and output of the Connector.
-    * To delete a misconfigured connector: `CURL -X DELETE localhost:8083/connectors/stations`
-
-When creating the JDBC Kafka connector, there are several properties inside the `configuration` field of the POST request we make
-to create the connector for our database.
-In particular, the topic name that the output data is sent to is generated as `f"{topic.prefix}[table-name]"`.
-In our case, since we were parsing a table called `stations`, and we specified a `topic.prefix` of `org.chicago.cta.`, the data
-coming from the `stations` table went to a topic called `org.chicago.cta.stations`.
-## Transformations
-These two sections are about how we used the processing frameworks of Faust and KSQL to transform the events that were generated
-into the topics created from our three data sources. Technically, these processing frameworks are also consumers of those topics,
-but they are more like intermediate consumers, and output to new streams. The consumers section will detail the actual "consumers"
-that can be found in the final application. 
-### Faust Stream Processor
-We used the Faust framework to transform the raw, static station data from our Postgres database, which we ingested using Kafka
-Connect.
-
-In this case, we reduced the amount of information in those events to only the data we need, and we changed some of the 
-color formatting in those events.
-
-This is configured inside `consumers/faust_stream.py`.
-
-You run the Faust application with:
-```bash
-faust -A faust_stream worker -l info 
+- Start the docker workspace from the root of the repository folder:
 ```
-
-For this consumer, we outputted the results of our transformation and filtering to the `org.chicago.cta.stations.table.v1` topic.
-### KSQL Table
-All we needed to do here was complete the SQL queries in `consumers/ksql.py` to read in data from an existing Kafka Stream, and then create
-a new output stream of that data. 
-
-In this case, we were utilizing the turnstile data, and aggregating it together, before publishing the results to another output stream.
-
-The output topic name is just the name of KSQL table we created to do the aggregation.
-In this case, the table name was `TURNSTILE_SUMMARY`. So, when we consume the output of this aggregation, that's the topic
-name we'll be looking for.
-## Consumers
-Now that we've created all the data we'll need inside various topics on our Kafka cluster, we need to create the Python consumer
-code to actually consume data from the cluster into the application.
-
-The first module we'll complete is the `consumers/consumer.py` file. This file defines the consumer base class (`KafkaConsumer`) for the consumers
-of the various topics. Note that although we had very different data sources, and producers to create that data, all of the final
-data is just events in kafka topics. So we only need to implement logic as to how to parse those output events, and deserialize
-the information according to the schemas passed and the encoding used. 
-
-The base `KafkaConsumer` takes care of initializing a connection to the Kafka cluster, and instantiating an underlying Python Confluent
-`Consumer` class. 
-Something to be noted here is that the constructor of the `KafkaConsumer` base class takes in a `topic_name_pattern` to define which
-streams to pull data from. In fact, this pattern can use regular expressions.
-
-For example, to pull data from any stream (which we implemented to have separate train arrival streams for each train station), you could
-have a topic pattern like this: `"^org.chicago.cta.station.arrivals.*"`, where the preceding `^` indicates that we do not want an 
-exact string match on our pattern, but we want to treat it as a regex.
-
-The regular expression patterns supported here are documented at https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/RegExp.
-
-Finally, we needed to edit the files:
-* `consumers/models/line.py`
-* `consumers/models/weather.py`
-* `consumers/models/station.py`
-
-To implement a `process_message` function, which identifies the logic as to how to serialize the data that is being consumed by the
-various consumers. This happens in the `process_message` method of the consumer classes.
-
-For example, our `Line` class and `Station` class know how to `_handle_arrival`, `_handle_station`, and handle incoming turnstile counts if the incoming event's topic is 
-`org.chicago.cta.station.arrivals.v1`, `org.chicago.cta.stations`, or `TURNSTILE_SUMMARY`, respectively.
-
-And our `Weather` class in `consumers/models/weather.py` knows how to deserialize the fields of the weather events that we need
-for our frontend. 
-### Step 6: Create Kafka Consumers
-With all of the data in Kafka, our final task is to consume the data in the web server that is going to serve the transit status pages to our commuters.
-
-To accomplish this, you must complete the following tasks:
-
-1. Complete the code in `consumers/consumer.py`
-2. Complete the code in `consumers/models/line.py`
-3. Complete the code in `consumers/models/weather.py`
-4. Complete the code in `consumers/models/station.py`
-
-## Additional Resources
-Here are some additional links with information about using Kafka.
-
-* [Confluent Python Client Documentation](https://docs.confluent.io/current/clients/confluent-kafka-python/#)
-* [Confluent Python Client Usage and Examples](https://github.com/confluentinc/confluent-kafka-python#usage)
-* [REST Proxy API Reference](https://docs.confluent.io/current/kafka-rest/api.html#post--topics-(string-topic_name))
-* [Kafka Connect JDBC Source Connector Configuration Options](https://docs.confluent.io/current/connect/kafka-connect-jdbc/source-connector/source_config_options.html)
-
-## Directory Layout
-The project consists of two main directories, `producers` and `consumers`.
-
-The following directory layout indicates the files that the student is responsible for modifying by adding a `*` indicator. Instructions for what is required are present as comments in each file.
-
-```
-* - Indicates that the student must complete the code in this file
-
-├── consumers
-│   ├── consumer.py *
-│   ├── faust_stream.py *
-│   ├── ksql.py *
-│   ├── models
-│   │   ├── lines.py
-│   │   ├── line.py *
-│   │   ├── station.py *
-│   │   └── weather.py *
-│   ├── requirements.txt
-│   ├── server.py
-│   ├── topic_check.py
-│   └── templates
-│       └── status.html
-└── producers
-    ├── connector.py *
-    ├── models
-    │   ├── line.py
-    │   ├── producer.py *
-    │   ├── schemas
-    │   │   ├── arrival_key.json
-    │   │   ├── arrival_value.json *
-    │   │   ├── turnstile_key.json
-    │   │   ├── turnstile_value.json *
-    │   │   ├── weather_key.json
-    │   │   └── weather_value.json *
-    │   ├── station.py *
-    │   ├── train.py
-    │   ├── turnstile.py *
-    │   ├── turnstile_hardware.py
-    │   └── weather.py *
-    ├── requirements.txt
-    └── simulation.py
-```
-
-## Running and Testing
-
-To run the simulation locally, you must first start up the Kafka ecosystem on your local machine with Docker Compose:
-```bash
+cd [repositoryfolder]
 docker-compose up
 ```
 
-This leverages the local `docker-compose.yaml` file to create all the resources you need to run this simulation locally. 
+- Make sure the containers are all running (you should see 9 processes):
+```
+docker ps
+```
+- Log in to the STEDI application: http://localhost:4567
+
+- Click Create New Customer, create a test customer and submit
+
+- Click start, then add steps until you reach 30 and the timer has stopped
+
+- Repeat this three times, and you will receive a risk score
+
+# Analyzing the Data
+
+The STEDI data science team has configured some real-time data sources using Kafka Connect. One of those data sources is Redis. When a customer is first assessed in the STEDI application, their record  is added to a sorted set called Customer in redis. Redis is running in a docker container on the default redis port (6379). There is no redis password configured. Redis is configured as a Kafka source, and whenever any data is saved to Redis (including Customer information), a payload is published to the Kafka topic called redis-server. 
+
+- To connect to the redis instance, from the terminal connect to Redis: 
+
+```
+docker exec -it nd029-c2-apache-spark-and-spark-streaming_redis_1 redis-cli
+```
+
+- Type:
+
+```
+zrange customer 0 -1
+```
+
+- Locate the the customer you created in the output
+
+- In another terminal run this command to start monitoring the kafka topic:
+
+```
+docker exec -it nd029-c2-apache-spark-and-spark-streaming_kafka_1 kafka-console-consumer --bootstrap-server localhost:9092 --topic redis-server
+```
+
+- Back in the redis-cli, type: 
+
+```
+zadd Customer 0 "{\"customerName\":\"Sam Test\",\"email\":\"sam.test@test.com\",\"phone\":\"8015551212\",\"birthDay\":\"2001-01-03\"}"
+```
+
+In the kafka consumer terminal you will see the following payload appear in the redis-server topic:
+
+```json
+{"key":"Q3VzdG9tZXI=","existType":"NONE","ch":false,"incr":false,"zSetEntries":[{"element":"eyJjdXN0b21lck5hbWUiOiJTYW0gVGVzdCIsImVtYWlsIjoic2FtLnRlc3RAdGVzdC5jb20iLCJwaG9uZSI6IjgwMTU1NTEyMTIiLCJiaXJ0aERheSI6IjIwMDEtMDEtMDMifQ==","score":0.0}],"zsetEntries":[{"element":"eyJjdXN0b21lck5hbWUiOiJTYW0gVGVzdCIsImVtYWlsIjoic2FtLnRlc3RAdGVzdC5jb20iLCJwaG9uZSI6IjgwMTU1NTEyMTIiLCJiaXJ0aERheSI6IjIwMDEtMDEtMDMifQ==","score":0.0}]}
+```
+
+Formatted version of the payload:
+```json
+{"key":"__Q3VzdG9tZXI=__",
+"existType":"NONE",
+"Ch":false,
+"Incr":false,
+"zSetEntries":[{
+"element":"__eyJjdXN0b21lck5hbWUiOiJTYW0gVGVzdCIsImVtYWlsIjoic2FtLnRlc3RAdGVzdC5jb20iLCJwaG9uZSI6IjgwMTU1NTEyMTIiLCJiaXJ0aERheSI6IjIwMDEtMDEtMDMifQ==__",
+"Score":0.0
+}],
+"zsetEntries":[{
+"element":"eyJjdXN0b21lck5hbWUiOiJTYW0gVGVzdCIsImVtYWlsIjoic2FtLnRlc3RAdGVzdC5jb20iLCJwaG9uZSI6IjgwMTU1NTEyMTIiLCJiaXJ0aERheSI6IjIwMDEtMDEtMDMifQ==",
+"score":0.0
+}]
+}
+```
+
+Both the key and the zSetEntries fields contain data that is base64 encoded. If you base64 decoded the above encoded data it would look like this:
+
+```json
+{"key":"__Customer__",
+"existType":"NONE",
+"Ch":false,
+"Incr":false,
+"zSetEntries":[{
+"element":"__{"customerName":"Sam Test","email":"sam.test@test.com","phone":"8015551212","birthDay":"2001-01-03"}",
+"Score":0.0
+}__],
+"zsetEntries":[{
+"element":"{"customerName":"Sam Test","email":"sam.test@test.com","phone":"8015551212","birthDay":"2001-01-03"}",
+"score":0.0
+}]
+}
+```
+
+# The Challenge
+
+The application development team has programmed certain business events to be published automatically to Kafka. Whenever a customer takes an assessment, their risk score is generated, as long as they have four or more completed assessments. The risk score is transmitted to a Kafka topic called `stedi-events`. The `stedi-events` Kafka topic has a String key and a String value as a JSON object with this format:
+
+```json
+{"customer":"Jason.Mitra@test.com",
+"score":7.0,
+"riskDate":"2020-09-14T07:54:06.417Z"
+}
+```
+
+The application development team was not able to complete the feature as the graph is currently not receiving any data. Because the graph is currently not receiving any data, you need to generate a new payload in a Kafka topic and make it available to the STEDI application to consume:
+
+![Empty Graph](images/empty_graph.png)
+
+- Spark master and worker run as part of the docker-compose configuration
+
+- Save the Spark startup logs for submission with your solution using the commands below:
+
+```
+docker logs nd029-c2-apache-spark-and-spark-streaming_spark_1 >& ../../spark/logs/spark-master.log
+
+docker logs nd029-c2-apache-spark-and-spark-streaming_spark_1 >& ../../spark/logs/spark-master.log >& ../../spark/logs/spark-worker.log
+```
+
+- Create a new Kafka topic to transmit the complete risk score with birth date, so the data can be viewed in the STEDI application graph
+
+- Edit `docker-compose.yaml` and set the the name of the newly created topic:
+
+```
+KAFKA_RISK_TOPIC: ______
+```
+
+- From the terminal running the docker-composer output, stop the docker containers:
+```
+CTRL+C
+```
+
+- Wait until they all stop
+
+- Start the docker containers once again:
+
+```
+docker-compose up
+```
+
+- Log in to the STEDI application: http://localhost:4567
+
+- From the timer page, use the toggle button in the upper right corner to activate simulated user data to see real-time customer and risk score data. Toggle off and on to create additional customers for redis events. Each time you activate it, STEDI creates 30 new customers, and then starts generating risk scores for each one. It takes 4 minutes for each customer to have risk scores generated, however customer data is generated immediately. 
+
+![Toggle Switch](images/toggle_simulation.png)
+
+- To monitor the progress of data generated, from a terminal type: 
+
+```
+docker logs -f nd029-c2-apache-spark-and-spark-streaming_stedi_1
+```
 
 
 
-Docker compose will take a 3-5 minutes to start, depending on your hardware. Please be patient and wait for the docker-compose logs to slow down or stop before beginning the simulation.
+- You are going to to write 3 Spark Python scripts. Each will connect to a kafka broker running at `kafka:19092` :
+    - `redis-server` topic: Write one spark script `sparkpyrediskafkastreamtoconsole.py` to subscribe to the `redis-server` topic, base64 decode the payload, and deserialize the JSON to individual fields, then print the fields to the console. The data should include the birth date and email address. You will need these.
+    - `stedi-events` topic: Write a second spark script `sparkpyeventskafkastreamtoconsole.py` to subscribe to the `stedi-events` topic and deserialize the JSON (it is not base64 encoded) to individual fields. You will need the email address and the risk score.
+    - New Topic: Write a spark script `sparkpykafkajoin.py` to join the customer dataframe and the customer risk dataframes, joining on the email address. Create a JSON output to the newly created kafka topic you configured for STEDI to subscribe to that contains at least the fields below:
 
-Once docker-compose is ready, the following services will be available:
+```json
+{"customer":"Santosh.Fibonnaci@test.com",
+ "score":"28.5",
+ "email":"Santosh.Fibonnaci@test.com",
+ "birthYear":"1963"
+} 
+```
 
-| Service | Host URL | Docker URL | Username | Password |
-| --- | --- | --- | --- | --- |
-| Public Transit Status | [http://localhost:8888](http://localhost:8888) | n/a | ||
-| Landoop Kafka Connect UI | [http://localhost:8084](http://localhost:8084) | http://connect-ui:8084 |
-| Landoop Kafka Topics UI | [http://localhost:8085](http://localhost:8085) | http://topics-ui:8085 |
-| Landoop Schema Registry UI | [http://localhost:8086](http://localhost:8086) | http://schema-registry-ui:8086 |
-| Kafka | PLAINTEXT://localhost:9092,PLAINTEXT://localhost:9093,PLAINTEXT://localhost:9094 | PLAINTEXT://kafka0:9092,PLAINTEXT://kafka1:9093,PLAINTEXT://kafka2:9094 |
-| REST Proxy | [http://localhost:8082](http://localhost:8082/) | http://rest-proxy:8082/ |
-| Schema Registry | [http://localhost:8081](http://localhost:8081/ ) | http://schema-registry:8081/ |
-| Kafka Connect | [http://localhost:8083](http://localhost:8083) | http://kafka-connect:8083 |
-| KSQL | [http://localhost:8088](http://localhost:8088) | http://ksql:8088 |
-| PostgreSQL | `jdbc:postgresql://localhost:5432/cta` | `jdbc:postgresql://postgres:5432/cta` | `cta_admin` | `chicago` |
+- From a new terminal type: `submit-event-kafkajoin.sh` or `submit-event-kafkajoin.cmd` to submit to the cluster
 
-Note that to access these services from your own machine, you will always use the `Host URL` column.
+- Once the data is populated in the configured kafka topic, the graph should have real-time data points
 
-When configuring services that run within Docker Compose, like **Kafka Connect you must use the Docker URL**. When you configure the JDBC Source Kafka Connector, for example, you will want to use the value from the `Docker URL` column.
+![Populated Graph](images/populated_graph.png)
 
-### Running the Simulation
-In general, you need to start up the components making up the three sections:
-* producers - `simulation.py`
-* transformers:
-  * `faust_stream.py`
-  * `ksql.py`
-* consumers - `server.py`
-
-Your producers, and your transformation code needs to already be running when you run `server.py`, or it won't work.
-
-#### To run the `producer`:
-
-1. `cd producers`
-2. `virtualenv venv`
-3. `. venv/bin/activate`
-4. `pip install -r requirements.txt`
-5. `python simulation.py`
-
-Once the simulation is running, you may hit `Ctrl+C` at any time to exit.
-
-#### To run the Faust Stream Processing Application:
-1. `cd consumers`
-2. `virtualenv venv`
-3. `. venv/bin/activate`
-4. `pip install -r requirements.txt`
-5. `faust -A faust_stream worker -l info`
-
-
-#### To run the KSQL Creation Script:
-1. `cd consumers`
-2. `virtualenv venv`
-3. `. venv/bin/activate`
-4. `pip install -r requirements.txt`
-5. `python ksql.py`
-
-#### To run the `consumer`:
-1. `cd consumers`
-2. `virtualenv venv`
-3. `. venv/bin/activate`
-4. `pip install -r requirements.txt`
-5. `python server.py`
-
-Once the server is running, you may hit `Ctrl+C` at any time to exit.
-# Closing Thoughts
-This was an interesting project that leveraged several input sources, performed some trivial data transformations, and then consumed that
-data in a frontend.
-
-It was essential to make sure that I kept an eye on the high level design of the architecture to remind myself of which components
-plug into which other components. This is partially why I created the high level architecture diagram.
-
-One of the pain points that caused some trouble for me was making sure that the topics that were being created lined up with the topics that
-were being consumed by the transformation frameworks, and the consumers inside our application. 
-
-Refactoring and pre-creating these topics might have helped to alleviate the concerns in terms of lining up the topic names, but creating
-the diagram was indispensable and immediately helped to remedy some maligned topic names.
+- Upload at least two screenshots of the working graph to the screenshots workspace folder 
+>>>>>>> 4313779 (initial commit)
 
