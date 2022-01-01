@@ -13,4 +13,4 @@ Projects:
 * [Evaluating Human Balance with Streaming Data](https://github.com/jcorrado76/udacity-data-streaming-final-projects/blob/dev/evaluate_human_balance_with_spark_streaming/README.md)
 
 Certificate:
-* 
+* [See my graduation certificate here](https://confirm.udacity.com/GYCXGMPK)
